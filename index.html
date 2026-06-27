@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>🧭 역할나침반 (Role Compass)</title>
+<meta name="description" content="상사·동료·후배 세 입장에서 나를 돌아보는 중간관리자 역할 인식 앱" />
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#3B5BDB" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="역할나침반" />
+<link rel="apple-touch-icon" href="icon-180.png" />
+<link rel="icon" type="image/svg+xml" href="icon.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Jua&family=Gaegu:wght@400;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+/* ============ 디자인 토큰 (16. 디자인 시스템) ============ */
+:root{
+  /* 베이스 컬러 (단계 무관) */
+  --sky:#D4E8EB; --teal:#AED4DA; --lake:#C4E6E8; --cliff:#7FA9B1;
+  --bridge:#C79A5E; --ink:#23323A; --paper:#FBF6E9; --note-line:#E6DCC2; --muted:#5E7178;
+  /* 단계 컬러 */
+  --c-orange:#E58A1F; --c-green:#2F7D4F; --c-blue:#3B5BDB;
+  /* 현재 단계색 (JS가 교체) */
+  --accent:#E58A1F; --accent-soft:#fbe6cb;
+  --shadow:6px 6px 0 var(--ink);
+  --shadow-sm:3px 3px 0 var(--ink);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:'Noto Sans KR',sans-serif;
+  color:var(--ink);
+  background:linear-gradient(180deg,var(--sky) 0%,var(--teal) 45%,var(--lake) 100%);
+  min-height:100vh;
+  overflow-x:hidden;
+  transition:background .3s ease;
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;}}
+
+/* ============ 다리 배경 (fixed 레이어) ============ */
+#bgBridge{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.9;}
+#bgBridge svg{width:100%;height:100%;}
+
+/* ============ 레이아웃 ============ */
+#app{position:relative;z-index:1;max-width:480px;margin:0 auto;padding:0 16px 40px;}
+header.topbar{
+  position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;
+  padding:12px 4px;backdrop-filter:blur(4px);
+}
+.logo{font-family:'Jua',sans-serif;font-size:20px;color:var(--ink);}
+.topbtns{display:flex;gap:8px;}
+.minibtn{
+  font-family:'Jua',sans-serif;font-size:13px;background:var(--paper);border:2px solid var(--ink);
+  border-radius:999px;padding:5px 12px;cursor:pointer;box-shadow:var(--shadow-sm);
+}
+.minibtn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink);}
+
+/* 단계 인디케이터 */
+.stepdots{display:flex;gap:8px;justify-content:center;margin:6px 0 14px;}
+.stepdots .dot{width:9px;height:9px;border-radius:50%;background:#ffffffaa;border:2px solid var(--ink);}
+.stepdots .dot.active{background:var(--accent);}
+
+/* ============ 노트 카드 ============ */
+.note{
+  position:relative;background:var(--paper);border:3px solid var(--ink);border-radius:18px;
+  box-shadow:var(--shadow);padding:22px 18px 20px;margin:16px 0;
+  background-image:repeating-linear-gradient(transparent,transparent 31px,var(--note-line) 31px,var(--note-line) 32px);
+  background-position:0 14px;
+}
+.note.plain{background-image:none;}
+.tape{
+  position:absolute;top:-13px;left:50%;transform:translateX(-50%) rotate(-2deg);
+  background:var(--accent);color:#fff;font-family:'Jua',sans-serif;font-size:13px;
+  padding:4px 16px;border:2px solid var(--ink);border-radius:4px;box-shadow:var(--shadow-sm);
+  white-space:nowrap;
+}
+
+/* 헤드라인 */
+.hero-en{font-family:'Black Han Sans',sans-serif;font-style:italic;transform:skewX(-8deg);
+  font-size:34px;color:var(--accent);line-height:1.05;margin:6px 0 2px;letter-spacing:-1px;}
+.hero-ko{font-family:'Jua',sans-serif;font-size:22px;line-height:1.35;margin:4px 0;}
+.hero-ko .em{color:var(--accent);}
+.sub{font-family:'Gaegu',cursive;font-size:16px;color:var(--muted);font-weight:700;margin:6px 0 0;}
+
+h2.cardtitle{font-family:'Jua',sans-serif;font-size:19px;margin:2px 0 12px;}
+.coachline{font-family:'Gaegu',cursive;font-weight:700;font-size:16px;color:var(--accent);margin:0 0 10px;}
+p.body{font-size:14.5px;line-height:1.7;margin:8px 0;}
+.muted{color:var(--muted);}
+.small{font-size:12.5px;}
+
+/* 칩 */
+.chip{display:inline-block;font-family:'Gaegu',cursive;font-weight:700;font-size:13px;background:#fff;
+  border:2px dashed var(--accent);border-radius:999px;padding:3px 12px;margin:3px 4px 3px 0;transform:rotate(-1.5deg);}
+
+/* 버튼 */
+.cta{
+  font-family:'Jua',sans-serif;font-size:17px;color:#fff;background:var(--accent);
+  border:3px solid var(--ink);border-radius:14px;padding:14px 20px;width:100%;cursor:pointer;
+  box-shadow:var(--shadow);margin-top:14px;
+}
+.cta:active{transform:translate(3px,3px);box-shadow:2px 2px 0 var(--ink);}
+.cta.ghost{background:var(--paper);color:var(--ink);}
+.cta:disabled{opacity:.55;cursor:not-allowed;}
+.btnrow{display:flex;gap:10px;flex-wrap:wrap;}
+.btnrow .cta{flex:1;min-width:120px;font-size:15px;padding:12px;}
+
+/* 입력 */
+label.fld{display:block;font-family:'Jua',sans-serif;font-size:14.5px;margin:14px 0 6px;}
+textarea,input[type=text],input[type=password]{
+  width:100%;font-family:'Noto Sans KR',sans-serif;font-size:14.5px;color:var(--ink);
+  background:var(--paper);border:2px solid var(--note-line);border-radius:10px;padding:10px 12px;resize:vertical;
+}
+textarea:focus,input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+textarea{min-height:60px;}
+
+/* 3단계 시작 카드 */
+.stepcards{display:flex;flex-direction:column;gap:14px;margin-top:18px;}
+.stepcard{
+  position:relative;background:var(--paper);border:3px solid var(--ink);border-radius:16px;padding:18px 16px 16px;
+  box-shadow:var(--shadow);cursor:pointer;transition:transform .15s ease,box-shadow .15s ease;
+  border-top-width:8px;
+}
+.stepcard:hover,.stepcard:focus-visible{transform:translateY(-4px);box-shadow:8px 10px 0 var(--ink);outline:none;}
+.stepcard:active{transform:translate(2px,2px);box-shadow:3px 3px 0 var(--ink);}
+.stepcard .num{font-family:'Black Han Sans',sans-serif;font-style:italic;font-size:13px;letter-spacing:1px;}
+.stepcard .ttl{font-family:'Jua',sans-serif;font-size:18px;margin:2px 0 4px;}
+.stepcard .ico{font-size:26px;float:right;margin-top:-30px;}
+.stepcard .desc{font-size:13px;line-height:1.6;color:var(--muted);}
+.sc-o{border-color:var(--ink);border-top-color:var(--c-orange);}
+.sc-o .num,.sc-o .ttl{color:var(--c-orange);}
+.sc-g{border-top-color:var(--c-green);}
+.sc-g .num,.sc-g .ttl{color:var(--c-green);}
+.sc-b{border-top-color:var(--c-blue);}
+.sc-b .num,.sc-b .ttl{color:var(--c-blue);}
+
+/* 채팅 */
+.bubble{max-width:88%;padding:11px 14px;border:2px solid var(--ink);border-radius:14px;margin:8px 0;font-size:14.5px;line-height:1.6;box-shadow:var(--shadow-sm);}
+.bubble.ai{background:var(--accent-soft);border-bottom-left-radius:3px;}
+.bubble.me{background:var(--paper);margin-left:auto;border-bottom-right-radius:3px;}
+.bubble .who{font-family:'Gaegu',cursive;font-weight:700;font-size:12px;color:var(--muted);display:block;margin-bottom:2px;}
+
+/* 관점 질문 포스트잇 */
+.persona{margin:14px 0;}
+.persona h3{font-family:'Jua',sans-serif;font-size:16px;margin:0 0 8px;}
+.qopt{
+  display:block;width:100%;text-align:left;background:#fff;border:2px solid var(--note-line);border-radius:12px;
+  padding:11px 13px;margin:8px 0;font-size:14px;line-height:1.55;cursor:pointer;font-family:inherit;color:var(--ink);
+  transition:border-color .15s,transform .1s;
+}
+.qopt:hover{border-color:var(--accent);}
+.qopt.sel{border-color:var(--accent);background:var(--accent-soft);box-shadow:var(--shadow-sm);transform:rotate(-.6deg);}
+.qopt .tag{font-family:'Gaegu',cursive;font-weight:700;font-size:11.5px;color:var(--accent);display:block;}
+
+/* 점수 게이지 */
+.gauge-row{display:flex;align-items:center;gap:10px;margin:9px 0;}
+.gauge-row .gname{font-family:'Jua',sans-serif;font-size:13px;width:78px;flex-shrink:0;}
+.gauge{flex:1;height:14px;background:#fff;border:2px solid var(--ink);border-radius:999px;overflow:hidden;}
+.gauge .fill{height:100%;background:var(--accent);width:0;transition:width .6s ease;}
+.gauge-row .gval{font-family:'Jua',sans-serif;font-size:13px;width:30px;text-align:right;}
+.gbasis{font-size:12px;color:var(--muted);margin:0 0 8px 88px;line-height:1.5;}
+
+/* 결과 블록 */
+.resblock{border-left:4px solid var(--accent);padding:2px 0 2px 12px;margin:14px 0;}
+.resblock .rh{font-family:'Jua',sans-serif;font-size:15px;margin:0 0 4px;}
+.resblock .rb{font-size:14px;line-height:1.65;white-space:pre-wrap;}
+.viewline{margin:5px 0;font-size:14px;line-height:1.6;}
+.viewline b{font-family:'Jua',sans-serif;}
+
+/* 로딩 */
+.loading{display:flex;align-items:center;gap:10px;font-family:'Gaegu',cursive;font-weight:700;color:var(--accent);font-size:16px;margin:12px 0;}
+.spin{width:20px;height:20px;border:3px solid var(--accent-soft);border-top-color:var(--accent);border-radius:50%;animation:sp 0.8s linear infinite;}
+@keyframes sp{to{transform:rotate(360deg);}}
+.errbox{background:#fff0f0;border:2px solid #c0392b;border-radius:10px;padding:12px;font-size:13.5px;color:#a02a1c;margin:10px 0;}
+
+/* 모달 */
+.modal-bg{position:fixed;inset:0;z-index:50;background:#23323a88;backdrop-filter:blur(5px);display:none;align-items:center;justify-content:center;padding:20px;}
+.modal-bg.show{display:flex;}
+.modal{position:relative;background:var(--paper);border:3px solid var(--ink);border-radius:18px;box-shadow:var(--shadow);padding:24px 20px;max-width:340px;width:100%;text-align:center;}
+.modal .pill{display:inline-block;font-family:'Jua',sans-serif;font-size:12px;background:var(--bridge);border:2px solid var(--ink);border-radius:999px;padding:4px 14px;}
+.modal h3{font-family:'Jua',sans-serif;font-size:18px;margin:12px 0;line-height:1.4;}
+.modal h3 .em{color:var(--accent);}
+.modal .qrbox{background:#fff;border:2px solid var(--ink);border-radius:12px;padding:12px;display:inline-block;margin:8px 0;}
+.modal .urlbox{background:var(--paper);border:2px solid var(--note-line);border-radius:8px;padding:8px;font-size:12px;word-break:break-all;margin-top:10px;}
+.modal .xbtn{position:absolute;top:-12px;right:-12px;width:34px;height:34px;border-radius:50%;background:var(--c-blue);color:#fff;border:2px solid var(--ink);font-size:18px;cursor:pointer;box-shadow:var(--shadow-sm);}
+
+.hidden{display:none!important;}
+.fade{animation:fadein .3s ease;}
+@keyframes fadein{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.footnote{font-size:11.5px;color:var(--muted);text-align:center;margin-top:24px;line-height:1.6;}
+</style>
+</head>
+<body>
+
+<!-- 연결 다리 배경 -->
+<div id="bgBridge">
+<svg viewBox="0 0 480 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <!-- 협곡 절벽 -->
+  <path d="M0,560 L0,900 L150,900 L150,640 Q120,600 90,610 Q40,625 0,560 Z" fill="#7FA9B1" opacity="0.55"/>
+  <path d="M480,560 L480,900 L330,900 L330,640 Q360,600 390,610 Q440,625 480,560 Z" fill="#7FA9B1" opacity="0.55"/>
+  <!-- 흔들다리 줄 -->
+  <path d="M70,628 Q240,720 410,628" stroke="#23323A" stroke-width="3" fill="none" opacity="0.5"/>
+  <path d="M70,612 Q240,704 410,612" stroke="#23323A" stroke-width="3" fill="none" opacity="0.5"/>
+  <!-- 다리 상판 널빤지 -->
+  <g opacity="0.65">
+    <path d="M72,616 Q240,706 408,616 L408,628 Q240,718 72,628 Z" fill="#C79A5E"/>
+    <g stroke="#23323A" stroke-width="2" opacity="0.6">
+      <line x1="96" y1="623" x2="96" y2="635"/><line x1="130" y1="635" x2="130" y2="647"/>
+      <line x1="170" y1="646" x2="170" y2="658"/><line x1="210" y1="652" x2="210" y2="664"/>
+      <line x1="240" y1="654" x2="240" y2="666"/><line x1="270" y1="652" x2="270" y2="664"/>
+      <line x1="310" y1="646" x2="310" y2="658"/><line x1="350" y1="635" x2="350" y2="647"/>
+      <line x1="384" y1="623" x2="384" y2="635"/>
+    </g>
+  </g>
+  <!-- 다리 위 사람 (중간관리자) -->
+  <g transform="translate(240,612)" opacity="0.8">
+    <circle cx="0" cy="-26" r="9" fill="#23323A"/>
+    <rect x="-7" y="-16" width="14" height="22" rx="6" fill="#23323A"/>
+    <line x1="-7" y1="-8" x2="-16" y2="2" stroke="#23323A" stroke-width="4" stroke-linecap="round"/>
+    <line x1="7" y1="-8" x2="16" y2="2" stroke="#23323A" stroke-width="4" stroke-linecap="round"/>
+    <line x1="-4" y1="6" x2="-9" y2="22" stroke="#23323A" stroke-width="4" stroke-linecap="round"/>
+    <line x1="4" y1="6" x2="9" y2="22" stroke="#23323A" stroke-width="4" stroke-linecap="round"/>
+  </g>
+</svg>
+</div>
+
+<div id="app">
+  <header class="topbar">
+    <span class="logo">🧭 역할나침반</span>
+    <div class="topbtns">
+      <button class="minibtn" onclick="openQR()">QR 보기</button>
+      <button class="minibtn" onclick="resetAll()">초기화</button>
+    </div>
+  </header>
+  <div class="stepdots" id="stepdots"></div>
+  <main id="screen"></main>
+  <div class="footnote">
+    이 결과는 평가가 아니라 자기 성찰을 위한 참고 자료입니다.<br/>
+    민감정보(실명·회사 기밀)는 입력하지 마세요.
+  </div>
+</div>
+
+<!-- QR 모달 -->
+<div class="modal-bg" id="qrModal">
+  <div class="modal">
+    <button class="xbtn" onclick="closeQR()">×</button>
+    <span class="pill">SCAN TO JOIN</span>
+    <h3>휴대폰으로 스캔하면<br/><span class="em">바로 시작</span>할 수 있어요</h3>
+    <div class="qrbox"><img id="qrImg" alt="QR" width="180" height="180"/></div>
+    <div class="urlbox" id="qrUrl"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   역할나침반 (Role Compass) — 단일 파일 MVP
+   AI: Google Gemini 2.0 Flash (무료 / 프론트 키 입력)
+   ============================================================ */
+
+const GEMINI_MODEL = "gemini-2.0-flash";
+const LS_KEY = "roleCompass_v6";
+const LS_APIKEY = "roleCompass_geminiKey";
+
+/* 5개 고정 역할 유형 (6장) */
+const TYPES = ["조율형","기준 제시형","현장 전달형","정서 지원형","실행 촉진형"];
+const TYPE_FULL = {
+  "조율형":"조율형 중간관리자",
+  "기준 제시형":"기준 제시형 중간관리자",
+  "현장 전달형":"현장 전달형 중간관리자",
+  "정서 지원형":"정서 지원형 중간관리자",
+  "실행 촉진형":"실행 촉진형 중간관리자",
+};
+
+/* ---------- 상태 ---------- */
+let S = loadState();
+function blankState(){
+  return {
+    step:1,                 // 진행 단계 1/2/3 (색)
+    situation:{q1:"",q2:"",q3:"",q4:"",q5:""},
+    chat:[],                // {role:'ai'|'me', text}
+    chatDone:false,
+    perspQ:null,            // {boss:[],peer:[],junior:[]}
+    chosen:null,            // {persona, text}
+    chosenReason:"",
+    analysis:null,          // 분석 결과 객체
+    declaration:"",         // 선언문 (편집본)
+  };
+}
+function loadState(){ try{return Object.assign(blankState(),JSON.parse(localStorage.getItem(LS_KEY)||"{}"));}catch(e){return blankState();} }
+function save(){ localStorage.setItem(LS_KEY, JSON.stringify(S)); }
+function getKey(){ return localStorage.getItem(LS_APIKEY)||""; }
+function setKey(k){ localStorage.setItem(LS_APIKEY,k); }
+
+/* ---------- 단계 색 테마 ---------- */
+const STEP_COLOR = {1:["#E58A1F","#fbe6cb"],2:["#2F7D4F","#d6ecdd"],3:["#3B5BDB","#dbe2fb"]};
+function setStep(n){
+  S.step=n; const [a,soft]=STEP_COLOR[n];
+  document.documentElement.style.setProperty('--accent',a);
+  document.documentElement.style.setProperty('--accent-soft',soft);
+  renderDots();
+  save();
+}
+function renderDots(){
+  document.getElementById('stepdots').innerHTML =
+    [1,2,3].map(i=>`<span class="dot ${i===S.step?'active':''}"></span>`).join('');
+}
+
+/* ============================================================
+   Gemini API
+   ============================================================ */
+async function callGemini(prompt, {system="", json=false, schema=null}={}){
+  const key=getKey();
+  if(!key) throw new Error("NOKEY");
+  const body={
+    contents:[{role:"user",parts:[{text:prompt}]}],
+    generationConfig:{temperature:0.8}
+  };
+  if(system) body.systemInstruction={parts:[{text:system}]};
+  if(json){
+    body.generationConfig.responseMimeType="application/json";
+    if(schema) body.generationConfig.responseSchema=schema;
+  }
+  const url=`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(key)}`;
+  const res=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  if(!res.ok){
+    const t=await res.text();
+    if(res.status===400 && /API key/i.test(t)) throw new Error("BADKEY");
+    throw new Error("API "+res.status+": "+t.slice(0,180));
+  }
+  const data=await res.json();
+  const text=data?.candidates?.[0]?.content?.parts?.map(p=>p.text).join("")||"";
+  if(!text) throw new Error("빈 응답입니다. 다시 시도해주세요.");
+  return json ? JSON.parse(text) : text;
+}
+
+/* 시스템 프롬프트 (11장) */
+const SYS_COACH = `당신은 중간관리자급 직원의 역할 인식을 돕는 AI 동료 코치입니다.
+목적은 사용자가 상사·동료·후배의 입장에서 자신을 바라보며 조직 내 중간관리자 역할을 스스로 발견하도록 돕는 것입니다.
+원칙: 1)정답·해결책을 바로 제시하지 않는다. 2)한 번에 하나의 질문만 한다. 3)답변 기반으로 다음 질문을 이어간다. 4)질문은 짧고 명확하게. 5)상사·동료·후배 관점을 균형 있게. 6)평가·비난하지 않는다. 7)답변이 너무 짧으면 한 번 더 구체적으로 되묻되 같은 질문은 2회까지만. 8)결과는 사용자가 입력한 내용만으로 정리. 9)부족한 정보는 "추가 확인 필요". 10)역할 유형은 5개(조율형/기준 제시형/현장 전달형/정서 지원형/실행 촉진형)에서만. 11)단정하지 않고 "현재 입력한 상황에서는 ○○형의 특징이 강하게 보입니다"로 표현. 12)자기 성찰용 참고 자료임을 안내.
+한국어로 따뜻하지만 전문적인 기업교육 톤으로 답하세요.`;
+
+/* ============================================================
+   화면 라우팅
+   ============================================================ */
+const el=id=>document.getElementById(id);
+function show(html){ el('screen').innerHTML=html; el('screen').classList.remove('fade'); void el('screen').offsetWidth; el('screen').classList.add('fade'); window.scrollTo(0,0);}
+
+/* ---------- 화면 1: 시작 (3단계 선택) ---------- */
+function scr1(){
+  setStep(1);
+  show(`
+  <div class="note plain" style="text-align:center;padding-top:26px;">
+    <div class="hero-en" style="color:var(--c-orange)">Find your bridge.</div>
+    <div class="hero-ko">나는 어느 <span class="em" style="color:var(--c-blue)">다리</span> 위에<br/>서 있을까?</div>
+    <p class="sub">상사와 후배, 윗선과 현장을 잇는<br/>나의 자리를 찾는 시간</p>
+  </div>
+  <div class="stepcards">
+    <div class="stepcard sc-o" tabindex="0" role="button" onclick="enterStep(1)" onkeydown="if(event.key==='Enter')enterStep(1)">
+      <span class="ico">🙋‍♂️</span>
+      <div class="num">STEP 01 · 상황 발견</div>
+      <div class="ttl">내 상황 적기</div>
+      <div class="desc">최근 조율이 필요했던 내 상황을 적고, AI 코치의 질문에 답해요.</div>
+    </div>
+    <div class="stepcard sc-g" tabindex="0" role="button" onclick="enterStep(2)" onkeydown="if(event.key==='Enter')enterStep(2)">
+      <span class="ico">💬</span>
+      <div class="num">STEP 02 · 세 입장</div>
+      <div class="ttl">관점 바꿔 보기</div>
+      <div class="desc">상사·동료·후배의 눈으로 나를 바라보는 질문에 답해요.</div>
+    </div>
+    <div class="stepcard sc-b" tabindex="0" role="button" onclick="enterStep(3)" onkeydown="if(event.key==='Enter')enterStep(3)">
+      <span class="ico">🧭</span>
+      <div class="num">STEP 03 · 역할 선언</div>
+      <div class="ttl">내 역할 선언하기</div>
+      <div class="desc">내 역할 유형을 확인하고 나만의 역할 선언문을 완성해요.</div>
+    </div>
+  </div>
+  <p class="footnote" style="margin-top:18px;">처음이라면 STEP 01부터 차근차근 — 익숙하면 원하는 단계로 바로 이동해요!</p>
+  `);
+}
+function enterStep(n){
+  if(!getKey()){ scrKey(n); return; }
+  if(n===1) scr2();
+  else if(n===2){
+    if(!hasSituation()){ alert("STEP 02는 상황 입력이 필요해요. STEP 01부터 진행해주세요."); scr2(); return; }
+    scr5();
+  } else {
+    if(!S.analysis){ alert("STEP 03은 분석 결과가 필요해요. 앞 단계를 먼저 진행해주세요."); enterStep(hasSituation()?2:1); return;}
+    scr6();
+  }
+}
+function hasSituation(){ return Object.values(S.situation).some(v=>v&&v.trim()); }
+
+/* ---------- API 키 입력 ---------- */
+function scrKey(next){
+  show(`
+  <div class="note"><div class="tape">API 키 설정</div>
+    <h2 class="cardtitle">🔑 Gemini 무료 키 연결</h2>
+    <p class="body">AI 질문·분석을 위해 Google Gemini 무료 API 키가 필요해요. 키는 이 브라우저에만 저장됩니다.</p>
+    <ol class="body small">
+      <li><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">aistudio.google.com/app/apikey</a> 접속</li>
+      <li>"Create API key" 클릭 → 키 복사</li>
+      <li>아래에 붙여넣기</li>
+    </ol>
+    <label class="fld">API 키</label>
+    <input type="password" id="keyIn" placeholder="AIza..." value="${getKey()}"/>
+    <button class="cta" onclick="saveKey(${next})">키 저장하고 계속</button>
+    <p class="footnote" style="margin-top:10px;">키 없이 화면 흐름만 둘러보려면 아래로.</p>
+    <button class="cta ghost" onclick="(${next}===1)?scr2():enterStep(${next})">키 없이 둘러보기</button>
+  </div>`);
+}
+function saveKey(next){
+  const k=el('keyIn').value.trim();
+  if(!k){alert("키를 입력해주세요.");return;}
+  setKey(k); enterStep(next);
+}
+
+/* ---------- 화면 2: 개인정보 안내 ---------- */
+function scr2(){
+  setStep(1);
+  show(`
+  <div class="note"><div class="tape">STEP 01 · 안내</div>
+    <h2 class="cardtitle">🔒 입력 전 꼭 확인해주세요</h2>
+    <p class="body">개인정보, 고객 실명, 회사 기밀은 입력하지 마세요. 실제 상황은 익명화하거나 일부 수정해서 적어주세요.</p>
+    <p class="body small muted">
+      · "김OO 대리" → <b>"후배 직원"</b><br/>
+      · "OO병원 고객 민원" → <b>"고객 불만 상황"</b><br/>
+      · 실제 회사명 → <b>"우리 부서", "타 부서"</b>
+    </p>
+    <button class="cta" onclick="scr3()">확인하고 시작하기</button>
+  </div>`);
+}
+
+/* ---------- 화면 3: 상황 입력 ---------- */
+function scr3(){
+  setStep(1);
+  const s=S.situation;
+  show(`
+  <div class="hero-en">Discover.</div>
+  <div class="note"><div class="tape">STEP 01 · 상황 발견</div>
+    <h2 class="cardtitle">최근 조율이 필요했던 상황</h2>
+    <label class="fld">1. 최근 조율이 필요했던 상황</label>
+    <textarea id="q1" placeholder="예: 후배의 일정과 타 부서 요청이 충돌했던 상황">${s.q1}</textarea>
+    <label class="fld">2. 관련된 사람 (상사·후배·동료·타부서·고객)</label>
+    <textarea id="q2" placeholder="예: 직속 상사, 후배 직원, 타 부서 담당자">${s.q2}</textarea>
+    <label class="fld">3. 그때 내가 한 행동</label>
+    <textarea id="q3" placeholder="">${s.q3}</textarea>
+    <label class="fld">4. 어려웠던 점</label>
+    <textarea id="q4" placeholder="">${s.q4}</textarea>
+    <label class="fld">5. 앞으로 더 잘하고 싶은 점</label>
+    <textarea id="q5" placeholder="">${s.q5}</textarea>
+    <button class="cta" onclick="submitSituation()">AI 질문 받기 →</button>
+  </div>`);
+}
+function submitSituation(){
+  S.situation={q1:el('q1').value,q2:el('q2').value,q3:el('q3').value,q4:el('q4').value,q5:el('q5').value};
+  if(!hasSituation()){alert("상황을 한 가지 이상 입력해주세요.");return;}
+  save();
+  if(S.chat.length===0) startChat(); else scr4();
+}
+
+/* ---------- 화면 4: AI 질문 대화 ---------- */
+const BASE_QUESTIONS=[
+ "그 상황에서 가장 조율이 필요했던 부분은 무엇이었나요?",
+ "그때 당신은 주로 어떤 행동을 했나요?",
+ "상사, 동료, 후배는 각각 당신에게 무엇을 기대하고 있었나요?",
+ "그 상황에서 당신이 잘한 점은 무엇인가요?",
+ "다시 같은 상황이 온다면 다르게 해보고 싶은 점은 무엇인가요?",
+];
+function startChat(){
+  S.chat=[{role:'ai',text:BASE_QUESTIONS[0]}]; S.chatDone=false; save(); scr4();
+}
+function scr4(){
+  setStep(1);
+  const chatHtml=S.chat.map(m=>`
+    <div class="bubble ${m.role}"><span class="who">${m.role==='ai'?'🧭 코치':'나'}</span>${escapeHtml(m.text)}</div>`).join('');
+  const answered=S.chat.filter(m=>m.role==='me').length;
+  show(`
+  <div class="hero-en">Discover.</div>
+  <div class="note plain"><div class="tape">STEP 01 · AI 코치</div>
+    <p class="coachline">한 번에 하나씩, 천천히 답해볼까요?</p>
+    <div id="chatbox">${chatHtml}</div>
+    <div id="chatAction"></div>
+  </div>`);
+  renderChatAction(answered);
+}
+function renderChatAction(answered){
+  const box=el('chatAction');
+  if(S.chatDone){
+    box.innerHTML=`<p class="body muted small">충분히 답해주셨어요. 이제 세 입장에서 나를 바라볼 시간이에요.</p>
+      <button class="cta" onclick="goPersp()">다음: 세 입장 질문 →</button>`;
+    return;
+  }
+  box.innerHTML=`
+    <textarea id="ans" placeholder="답변을 적어주세요..."></textarea>
+    <div class="btnrow">
+      <button class="cta" onclick="sendAns()">다음 질문 →</button>
+      ${answered>=2?`<button class="cta ghost" onclick="S.chatDone=true;save();scr4();">결과 보기</button>`:``}
+    </div>`;
+}
+async function sendAns(){
+  const t=el('ans').value.trim();
+  if(!t){alert("답변을 입력해주세요.");return;}
+  S.chat.push({role:'me',text:t}); save(); scr4();
+  // 다음 질문 생성
+  const action=el('chatAction');
+  action.innerHTML=`<div class="loading"><span class="spin"></span>코치가 다음 질문을 생각하고 있어요...</div>`;
+  const answered=S.chat.filter(m=>m.role==='me').length;
+  const transcript=S.chat.map(m=>(m.role==='ai'?'코치: ':'사용자: ')+m.text).join('\n');
+  const prompt=`다음은 코치와 사용자의 대화입니다.\n\n${transcript}\n\n원칙(11장)을 지켜, 사용자가 자신의 중간관리자 역할을 더 돌아볼 수 있는 "다음 질문 하나"만 만들어주세요. 사용자의 직전 답변이 너무 짧거나 모호하면 같은 주제로 한 번 더 구체적으로 되물어주세요(단, 같은 질문 2회까지). 충분히 답이 모였다면 더 묻지 말고 마무리하세요.\n반드시 JSON으로만: {"done": false, "question": "다음 질문"} 또는 {"done": true, "question": ""}. 지금까지 사용자 답변 수: ${answered}개(보통 4~5개면 충분).`;
+  try{
+    const r=await callGemini(prompt,{system:SYS_COACH,json:true,schema:{
+      type:"object",properties:{done:{type:"boolean"},question:{type:"string"}},required:["done"]
+    }});
+    if(r.done || answered>=6){ S.chatDone=true; }
+    else { S.chat.push({role:'ai',text:r.question||BASE_QUESTIONS[Math.min(answered,4)]}); }
+    save(); scr4();
+  }catch(e){
+    handleApiError(e,()=>{
+      // 폴백: 고정 질문 흐름
+      if(answered>=BASE_QUESTIONS.length){S.chatDone=true;}
+      else S.chat.push({role:'ai',text:BASE_QUESTIONS[answered]});
+      save();scr4();
+    });
+  }
+}
+function goPersp(){ if(S.perspQ) scr5(); else loadPersp(); }
+
+/* ---------- 화면 5: 관점 전환 ---------- */
+async function loadPersp(){
+  setStep(2);
+  show(`<div class="hero-en">Perspective.</div>
+    <div class="note plain"><div class="tape">STEP 02 · 세 입장</div>
+    <div class="loading"><span class="spin"></span>상사·동료·후배의 시선으로 질문을 만드는 중...</div></div>`);
+  const prompt=`아래 사용자의 상황과 대화입니다.\n[상황]\n1.${S.situation.q1}\n2.관련자:${S.situation.q2}\n3.행동:${S.situation.q3}\n4.어려움:${S.situation.q4}\n5.개선희망:${S.situation.q5}\n[대화]\n${S.chat.map(m=>(m.role==='ai'?'코치:':'사용자:')+m.text).join('\n')}\n\n12장 관점 전환 프롬프트에 따라, 상사·동료·후배 각 입장에서 사용자가 자신의 역할을 돌아볼 수 있는 짧고 현실적인 질문을 각 2개씩 만들어주세요. 해결책 제시·비난 표현 금지. JSON으로만 반환.`;
+  try{
+    const r=await callGemini(prompt,{system:SYS_COACH,json:true,schema:{
+      type:"object",properties:{
+        boss:{type:"array",items:{type:"string"}},
+        peer:{type:"array",items:{type:"string"}},
+        junior:{type:"array",items:{type:"string"}}
+      },required:["boss","peer","junior"]
+    }});
+    S.perspQ=r; save(); scr5();
+  }catch(e){ handleApiError(e,()=>{ S.perspQ=fallbackPersp(); save(); scr5(); }); }
+}
+function fallbackPersp(){
+  return {
+    boss:["상사는 내가 현장 상황을 얼마나 정확히 전달한다고 느낄까?","상사는 내가 어떤 결정을 더 빨리 내려주길 바랐을까?"],
+    peer:["동료는 나를 협력하기 쉬운 사람으로 볼까, 부담스러운 사람으로 볼까?","동료 입장에서 내 역할 경계는 분명했을까?"],
+    junior:["후배는 내가 자신을 지지한다고 느꼈을까?","후배는 내게서 어떤 기준을 기대했을까?"]
+  };
+}
+function scr5(){
+  setStep(2);
+  const p=S.perspQ;
+  const opt=(persona,label,arr)=>arr.map((q,i)=>{
+    const id=persona+i; const sel=S.chosen&&S.chosen.persona===persona&&S.chosen.idx===i;
+    return `<button class="qopt ${sel?'sel':''}" onclick="chooseQ('${persona}',${i},this)" data-text="${escapeAttr(q)}">
+      <span class="tag"># ${label}</span>${escapeHtml(q)}</button>`;
+  }).join('');
+  show(`
+  <div class="hero-en">Perspective.</div>
+  <div class="note plain"><div class="tape">STEP 02 · 세 입장</div>
+    <p class="coachline">상사·동료·후배의 눈으로 나를 바라봐요.</p>
+    <div class="persona"><h3>🙋 상사 입장</h3>${opt('boss','상사',p.boss)}</div>
+    <div class="persona"><h3>🤝 동료 입장</h3>${opt('peer','동료',p.peer)}</div>
+    <div class="persona"><h3>🌱 후배 입장</h3>${opt('junior','후배',p.junior)}</div>
+  </div>
+  <div class="note" id="reasonCard" ${S.chosen?'':'style="display:none"'}>
+    <div class="tape">가장 의미 있었던 질문</div>
+    <p class="body small">선택한 질문: <b id="chosenText">${S.chosen?escapeHtml(S.chosen.text):''}</b></p>
+    <label class="fld">그 질문이 왜 가장 의미 있었나요?</label>
+    <textarea id="reason" placeholder="예: 후배가 나를 그렇게 본다고 생각해본 적이 없어서 충격이었다.">${S.chosenReason}</textarea>
+    <p class="small muted">한두 문장으로 적어주세요. 이 답변이 역할 분석에 반영됩니다.</p>
+    <button class="cta" onclick="submitPersp()">다음: 내 역할 보기 →</button>
+  </div>`);
+}
+const PERSONA_KR={boss:"상사",peer:"동료",junior:"후배"};
+function chooseQ(persona,idx,btn){
+  document.querySelectorAll('.qopt').forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel');
+  S.chosen={persona,idx,text:btn.dataset.text,personaKr:PERSONA_KR[persona]};
+  el('reasonCard').style.display='block';
+  el('chosenText').textContent=btn.dataset.text;
+  el('reasonCard').scrollIntoView({behavior:'smooth',block:'center'});
+  save();
+}
+function submitPersp(){
+  if(!S.chosen){alert("질문을 하나 선택해주세요.");return;}
+  S.chosenReason=el('reason').value.trim();
+  if(!S.chosenReason){alert("선택 이유를 적어주세요.");return;}
+  save(); loadAnalysis();
+}
+
+/* ---------- 화면 6: 역할 분석 ---------- */
+async function loadAnalysis(){
+  setStep(3);
+  show(`<div class="hero-en">Analyze.</div>
+   <div class="note plain"><div class="tape">STEP 03 · 분석</div>
+   <div class="loading"><span class="spin"></span>세 입장을 거쳐 역할을 분석하는 중...</div></div>`);
+  const allQ=`상사:${S.perspQ.boss.join(' / ')}\n동료:${S.perspQ.peer.join(' / ')}\n후배:${S.perspQ.junior.join(' / ')}`;
+  const prompt=`13장 역할 유형 분석 프롬프트를 따르세요. 핵심은 상사·동료·후배 세 입장에서 바라본 사용자의 역할입니다.
+[상황]
+${JSON.stringify(S.situation)}
+[코치 대화]
+${S.chat.map(m=>(m.role==='ai'?'코치:':'사용자:')+m.text).join('\n')}
+[관점 질문 6개]
+${allQ}
+[사용자가 고른 질문] (${S.chosen.personaKr} 입장) "${S.chosen.text}"
+[고른 이유] "${S.chosenReason}"
+
+세 입장을 각각 거친 뒤 종합하세요. 5개 유형 각각 0~5점과 1문장 근거. 입력 안 한 사실은 만들지 말고 근거 약하면 "추가 확인 필요". 단정 금지. 동점이면 사용자가 고른 질문/이유와 가까운 유형 우선.
+유형명은 정확히: 조율형 / 기준 제시형 / 현장 전달형 / 정서 지원형 / 실행 촉진형.
+JSON으로만 반환.`;
+  const schema={type:"object",properties:{
+    threeViews:{type:"object",properties:{boss:{type:"string"},peer:{type:"string"},junior:{type:"string"}},required:["boss","peer","junior"]},
+    meaningTendency:{type:"string"},
+    scores:{type:"array",items:{type:"object",properties:{type:{type:"string"},score:{type:"integer"},basis:{type:"string"}},required:["type","score","basis"]}},
+    primaryType:{type:"string"},primaryReason:{type:"string"},
+    secondaryType:{type:"string"},secondaryReason:{type:"string"},
+    typeDescription:{type:"string"},
+    strengths:{type:"array",items:{type:"string"}},
+    improvements:{type:"array",items:{type:"string"}},
+    actions:{type:"array",items:{type:"object",properties:{action:{type:"string"},perspective:{type:"string"}},required:["action","perspective"]}}
+  },required:["threeViews","scores","primaryType","secondaryType","typeDescription","strengths","improvements","actions"]};
+  try{
+    S.analysis=await callGemini(prompt,{system:SYS_COACH,json:true,schema});
+    save(); scr6();
+  }catch(e){ handleApiError(e,null,loadAnalysis); }
+}
+function scr6(){
+  setStep(3);
+  const a=S.analysis;
+  const maxScore=5;
+  const scoresHtml=(a.scores||[]).map(s=>`
+    <div class="gauge-row">
+      <span class="gname">${escapeHtml(short(s.type))}</span>
+      <span class="gauge"><span class="fill" data-w="${(s.score/maxScore*100)}"></span></span>
+      <span class="gval">${s.score}/5</span>
+    </div>
+    <p class="gbasis">${escapeHtml(s.basis)}</p>`).join('');
+  show(`
+  <div class="hero-en">Analyze.</div>
+  <div class="note"><div class="tape">STEP 03 · 분석 결과</div>
+    <h2 class="cardtitle">👀 세 입장에서 본 나</h2>
+    <p class="viewline"><b>🙋 상사가 본 나</b><br/>${escapeHtml(a.threeViews.boss)}</p>
+    <p class="viewline"><b>🤝 동료가 본 나</b><br/>${escapeHtml(a.threeViews.peer)}</p>
+    <p class="viewline"><b>🌱 후배가 본 나</b><br/>${escapeHtml(a.threeViews.junior)}</p>
+  </div>
+  <div class="note plain">
+    <h2 class="cardtitle">💡 가장 의미 있었던 질문이 말해주는 것</h2>
+    <p class="body small">· 고른 질문 (${S.chosen.personaKr}): <b>${escapeHtml(S.chosen.text)}</b></p>
+    <p class="body small">· 고른 이유: ${escapeHtml(S.chosenReason)}</p>
+    <p class="body small">· 시사하는 역할 경향: ${escapeHtml(a.meaningTendency||"추가 확인 필요")}</p>
+  </div>
+  <div class="note plain">
+    <h2 class="cardtitle">📊 유형 신호 점수</h2>
+    ${scoresHtml}
+  </div>
+  <div class="note"><div class="tape">유형 결과</div>
+    <h2 class="cardtitle">🧭 대표 / 보조 역할</h2>
+    <p class="body"><span class="chip">대표</span> <b>${escapeHtml(fullType(a.primaryType))}</b></p>
+    <p class="body small muted">${escapeHtml(a.primaryReason||"")}</p>
+    <p class="body"><span class="chip">보조</span> <b>${escapeHtml(fullType(a.secondaryType))}</b></p>
+    <p class="body small muted">${escapeHtml(a.secondaryReason||"")}</p>
+    <p class="body">${escapeHtml(a.typeDescription)}</p>
+  </div>
+  <div class="note plain">
+    <h2 class="cardtitle">✨ 강점 / 보완점</h2>
+    <p class="body"><b>현재 강점</b></p>
+    <ul class="body">${(a.strengths||[]).map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul>
+    <p class="body"><b>보완하면 좋은 점</b></p>
+    <ul class="body">${(a.improvements||[]).map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul>
+  </div>
+  <div class="note plain">
+    <h2 class="cardtitle">🌅 내일부터 할 행동 후보</h2>
+    <ul class="body">${(a.actions||[]).map(x=>`<li>${escapeHtml(x.action)} <span class="muted small">(${escapeHtml(x.perspective)})</span></li>`).join('')}</ul>
+  </div>
+  <p class="body small muted">현재 입력한 상황에서는 ${escapeHtml(short(a.primaryType))}의 특징이 강하게 보입니다. 이 결과는 평가가 아니라 자기 성찰을 위한 참고 자료입니다.</p>
+  <button class="cta" onclick="loadDeclaration()">역할 선언문 만들기 →</button>
+  `);
+  // 게이지 애니메이션
+  requestAnimationFrame(()=>document.querySelectorAll('.gauge .fill').forEach(f=>f.style.width=f.dataset.w+'%'));
+}
+
+/* ---------- 화면 7: 역할 선언문 ---------- */
+async function loadDeclaration(){
+  setStep(3);
+  if(S.declaration){ scr7(); return; }
+  show(`<div class="hero-en">Declare.</div>
+   <div class="note plain"><div class="tape">STEP 03 · 선언문</div>
+   <div class="loading"><span class="spin"></span>선언문 초안을 쓰는 중...</div></div>`);
+  const a=S.analysis;
+  const prompt=`14장 역할 선언문 생성 프롬프트를 따르세요. 아래 분석 결과 기반으로 중간관리자 역할 선언문을 3문장 이내로 작성. 따뜻하지만 전문적. 상사·동료·후배 사이의 연결 역할이 드러나게. 대표 역할 유형(${fullType(a.primaryType)})이 자연스럽게 드러나게. 입력 안 한 사실 금지.
+JSON으로만: {"sentences":["문장1","문장2","문장3"]}`;
+  try{
+    const r=await callGemini(prompt,{system:SYS_COACH,json:true,schema:{type:"object",properties:{sentences:{type:"array",items:{type:"string"}}},required:["sentences"]}});
+    S.declaration=(r.sentences||[]).join('\n'); save(); scr7();
+  }catch(e){ handleApiError(e,()=>{ S.declaration="나는 조직 안에서 사람을 연결하는 중간관리자가 되겠습니다.\n후배에게는 기준을, 상사에게는 현장을 명확히 전하겠습니다.\n혼자 해결하기보다 함께 일할 구조를 만들겠습니다."; save(); scr7();},loadDeclaration); }
+}
+function scr7(){
+  setStep(3);
+  show(`
+  <div class="hero-en">Declare.</div>
+  <div class="note"><div class="tape">STEP 03 · 역할 선언문</div>
+    <h2 class="cardtitle">✍️ 나의 역할 선언문</h2>
+    <p class="body small muted">AI 초안을 자유롭게 고쳐 나만의 문장으로 만들어요. (3문장 이내 권장)</p>
+    <textarea id="decl" style="min-height:120px;">${escapeHtml(S.declaration)}</textarea>
+    <button class="cta" onclick="submitDecl()">최종 결과 보기 →</button>
+  </div>`);
+}
+function submitDecl(){ S.declaration=el('decl').value.trim(); save(); scr8(); }
+
+/* ---------- 화면 8: 최종 결과 ---------- */
+function scr8(){
+  setStep(3);
+  const a=S.analysis;
+  const text=finalText();
+  show(`
+  <div class="hero-en">Declare.</div>
+  <div class="note"><div class="tape">최종 결과</div>
+    <h2 class="cardtitle">🧭 나의 중간관리자 역할 결과</h2>
+    <div class="resblock"><div class="rh">1. 내가 다룬 상황</div><div class="rb">${escapeHtml(S.situation.q1||"추가 확인 필요")}</div></div>
+    <div class="resblock"><div class="rh">2. 세 입장에서 본 나</div><div class="rb">🙋 상사: ${escapeHtml(a.threeViews.boss)}\n🤝 동료: ${escapeHtml(a.threeViews.peer)}\n🌱 후배: ${escapeHtml(a.threeViews.junior)}</div></div>
+    <div class="resblock"><div class="rh">3. 의미 있었던 질문과 고른 이유</div><div class="rb">질문(${S.chosen.personaKr}): ${escapeHtml(S.chosen.text)}\n이유: ${escapeHtml(S.chosenReason)}</div></div>
+    <div class="resblock"><div class="rh">4. 대표 역할 유형</div><div class="rb">${escapeHtml(fullType(a.primaryType))}</div></div>
+    <div class="resblock"><div class="rh">5. 보조 역할 유형</div><div class="rb">${escapeHtml(fullType(a.secondaryType))}</div></div>
+    <div class="resblock"><div class="rh">6. 현재 강점</div><div class="rb">${(a.strengths||[]).map(x=>'· '+x).join('\n')}</div></div>
+    <div class="resblock"><div class="rh">7. 보완하면 좋은 점</div><div class="rb">${(a.improvements||[]).map(x=>'· '+x).join('\n')}</div></div>
+    <div class="resblock"><div class="rh">8. 나의 역할 선언문</div><div class="rb">${escapeHtml(S.declaration)}</div></div>
+    <div class="resblock"><div class="rh">9. 내일부터 할 작은 행동</div><div class="rb">${(a.actions||[]).map(x=>'· '+x.action+' ('+x.perspective+')').join('\n')}</div></div>
+    <p class="footnote" style="text-align:left">이 결과는 평가가 아니라, 세 입장에서 나를 돌아본 자기 성찰 기록입니다.</p>
+  </div>
+  <div class="btnrow">
+    <button class="cta" onclick="copyResult()">📋 결과 복사하기</button>
+    <button class="cta ghost" onclick="scr7()">선언문 수정하기</button>
+  </div>
+  <button class="cta ghost" onclick="resetAll()">처음으로 돌아가기</button>
+  `);
+}
+function finalText(){
+  const a=S.analysis;
+  return `[나의 중간관리자 역할 결과]
+
+1. 내가 다룬 상황
+   : ${S.situation.q1||"추가 확인 필요"}
+
+2. 상사·동료·후배 세 입장에서 본 나
+   - 상사가 본 나 : ${a.threeViews.boss}
+   - 동료가 본 나 : ${a.threeViews.peer}
+   - 후배가 본 나 : ${a.threeViews.junior}
+
+3. 가장 의미 있었던 질문과 내가 고른 이유
+   - 질문 (${S.chosen.personaKr} 입장) : ${S.chosen.text}
+   - 고른 이유 : ${S.chosenReason}
+
+4. 대표 역할 유형
+   : ${fullType(a.primaryType)}
+
+5. 보조 역할 유형
+   : ${fullType(a.secondaryType)}
+
+6. 현재 강점
+   : ${(a.strengths||[]).join(' / ')}
+
+7. 보완하면 좋은 점
+   : ${(a.improvements||[]).join(' / ')}
+
+8. 나의 역할 선언문
+   : ${S.declaration}
+
+9. 내일부터 할 작은 행동
+   : ${(a.actions||[]).map(x=>x.action+' ('+x.perspective+')').join(' / ')}
+
+[안내] 이 결과는 평가가 아니라, 세 입장에서 나를 돌아본 자기 성찰 기록입니다.`;
+}
+async function copyResult(){
+  try{ await navigator.clipboard.writeText(finalText()); alert("결과가 복사되었어요! 워크시트에 붙여넣으세요.");}
+  catch(e){ // 폴백
+    const ta=document.createElement('textarea'); ta.value=finalText(); document.body.appendChild(ta); ta.select();
+    try{document.execCommand('copy');alert("결과가 복사되었어요!");}catch(_){alert("복사를 지원하지 않는 브라우저입니다. 길게 눌러 직접 선택해주세요.");}
+    document.body.removeChild(ta);
+  }
+}
+
+/* ============================================================
+   유틸 / 공통
+   ============================================================ */
+function short(t){ return (t||"").replace(' 중간관리자',''); }
+function fullType(t){ const k=short(t); return TYPE_FULL[k]||t||"추가 확인 필요"; }
+function escapeHtml(s){return (s||"").replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function escapeAttr(s){return (s||"").replace(/"/g,'&quot;');}
+function handleApiError(e,fallback,retry){
+  let msg=e.message;
+  if(msg==="NOKEY"){ alert("API 키가 없어요. 먼저 키를 연결해주세요."); scrKey(S.step); return; }
+  if(msg==="BADKEY"){ alert("API 키가 올바르지 않아요. 다시 입력해주세요."); localStorage.removeItem(LS_APIKEY); scrKey(S.step); return; }
+  const box=document.createElement('div');
+  box.className='errbox';
+  box.innerHTML=`⚠️ AI 응답에 실패했어요.<br/><span class="small">${escapeHtml(msg)}</span><br/>`;
+  const r=document.createElement('button'); r.className='cta'; r.style.marginTop='8px'; r.textContent='다시 생성';
+  r.onclick=()=>{ box.remove(); (retry||fallback||(()=>{}))(); };
+  box.appendChild(r);
+  if(fallback){ const f=document.createElement('button'); f.className='cta ghost'; f.textContent='예시로 계속'; f.onclick=()=>{box.remove();fallback();}; box.appendChild(f);}
+  el('screen').querySelector('.note').appendChild(box);
+}
+
+/* QR 모달 */
+function openQR(){
+  const url=location.href.split('#')[0];
+  el('qrUrl').textContent=url;
+  el('qrImg').src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data="+encodeURIComponent(url);
+  el('qrModal').classList.add('show');
+}
+function closeQR(){ el('qrModal').classList.remove('show'); }
+
+/* 초기화 */
+function resetAll(){
+  if(!confirm("처음부터 다시 시작할까요? 입력한 내용이 지워집니다. (API 키는 유지)")) return;
+  S=blankState(); localStorage.removeItem(LS_KEY); scr1();
+}
+
+/* 시작 */
+window.addEventListener('DOMContentLoaded',()=>{ renderDots(); scr1(); });
+
+/* 서비스워커 등록 (PWA: 홈화면 추가·오프라인 진입) */
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+}
+</script>
+</body>
+</html>

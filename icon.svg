@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#D4E8EB"/>
+      <stop offset="0.5" stop-color="#AED4DA"/>
+      <stop offset="1" stop-color="#C4E6E8"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#g)"/>
+  <rect x="20" y="20" width="472" height="472" rx="96" fill="none" stroke="#23323A" stroke-width="14"/>
+  <!-- bridge ropes -->
+  <path d="M96,300 Q256,392 416,300" stroke="#23323A" stroke-width="9" fill="none" opacity="0.5"/>
+  <path d="M96,276 Q256,368 416,276" stroke="#23323A" stroke-width="9" fill="none" opacity="0.5"/>
+  <!-- bridge deck -->
+  <path d="M100,284 Q256,374 412,284 L412,304 Q256,394 100,304 Z" fill="#C79A5E" stroke="#23323A" stroke-width="6"/>
+  <!-- compass -->
+  <circle cx="256" cy="200" r="86" fill="#FBF6E9" stroke="#23323A" stroke-width="12"/>
+  <polygon points="256,128 286,200 256,176 226,200" fill="#E58A1F" stroke="#23323A" stroke-width="6" stroke-linejoin="round"/>
+  <polygon points="256,272 286,200 256,224 226,200" fill="#3B5BDB" stroke="#23323A" stroke-width="6" stroke-linejoin="round"/>
+  <circle cx="256" cy="200" r="12" fill="#23323A"/>
+</svg>
