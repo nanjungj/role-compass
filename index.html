@@ -310,9 +310,19 @@ function renderDots(){
 /* ============================================================
    Gemini API
    ============================================================ */
+/* PROXY_READY: null=미확인, true=서버에 키 있음(키 입력 불필요), false=없음(키 입력 폴백) */
+let PROXY_READY = null;
+async function ensureProxyProbe(){
+  if(PROXY_READY!==null) return PROXY_READY;
+  try{
+    const r=await fetch('api/gemini',{method:'GET'});
+    if(r.ok){ const d=await r.json(); PROXY_READY=!!d.ready; }
+    else PROXY_READY=false;
+  }catch(e){ PROXY_READY=false; }
+  return PROXY_READY;
+}
+
 async function callGemini(prompt, {system="", json=false, schema=null}={}){
-  const key=getKey();
-  if(!key) throw new Error("NOKEY");
   const body={
     contents:[{role:"user",parts:[{text:prompt}]}],
     generationConfig:{temperature:0.8}
@@ -322,6 +332,28 @@ async function callGemini(prompt, {system="", json=false, schema=null}={}){
     body.generationConfig.responseMimeType="application/json";
     if(schema) body.generationConfig.responseSchema=schema;
   }
+
+  // 1) 서버 프록시 우선 — 키 입력 없이 바로 사용
+  if(PROXY_READY!==false){
+    try{
+      const r=await fetch('api/gemini',{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+      if(r.status===404||r.status===501){ PROXY_READY=false; }      // 프록시 없음/키 미설정 → 폴백
+      else{
+        const d=await r.json();
+        if(!r.ok) throw new Error("API "+r.status+": "+((d.error&&d.error.message)||JSON.stringify(d)).slice(0,180));
+        PROXY_READY=true;
+        if(!d.text) throw new Error("빈 응답입니다. 다시 시도해주세요.");
+        return json?JSON.parse(d.text):d.text;
+      }
+    }catch(e){
+      if(e instanceof TypeError){ PROXY_READY=false; }             // 네트워크/엔드포인트 없음 → 폴백
+      else throw e;
+    }
+  }
+
+  // 2) 폴백 — 사용자가 입력한 키로 직접 호출
+  const key=getKey();
+  if(!key) throw new Error("NOKEY");
   const url=`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(key)}`;
   const res=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
   if(!res.ok){
@@ -379,8 +411,9 @@ function scr1(){
   <p class="footnote" style="margin-top:18px;">처음이라면 STEP 01부터 차근차근 — 익숙하면 원하는 단계로 바로 이동해요!</p>
   `);
 }
-function enterStep(n){
-  if(!getKey()){ scrKey(n); return; }
+async function enterStep(n){
+  await ensureProxyProbe();
+  if(PROXY_READY!==true && !getKey()){ scrKey(n); return; }
   if(n===1) scr2();
   else if(n===2){
     if(!hasSituation()){ alert("STEP 02는 상황 입력이 필요해요. STEP 01부터 진행해주세요."); scr2(); return; }
@@ -822,7 +855,7 @@ function resetAll(){
 }
 
 /* 시작 */
-window.addEventListener('DOMContentLoaded',()=>{ renderDots(); scr1(); });
+window.addEventListener('DOMContentLoaded',()=>{ renderDots(); scr1(); ensureProxyProbe(); });
 
 /* 서비스워커 등록 (PWA: 홈화면 추가·오프라인 진입) */
 if('serviceWorker' in navigator){
